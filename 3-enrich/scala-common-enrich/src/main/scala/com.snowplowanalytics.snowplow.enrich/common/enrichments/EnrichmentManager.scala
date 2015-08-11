@@ -19,6 +19,9 @@ package enrichments
 // Joda
 import org.joda.time.DateTime
 
+// Iglu
+import iglu.client.Resolver
+
 // Scalaz
 import scalaz._
 import Scalaz._
@@ -30,9 +33,9 @@ import util.Tap._
 import adapters.RawEvent
 import outputs.EnrichedEvent
 
-import utils.{ConversionUtils => CU}
-import utils.{JsonUtils => JU}
+import utils.{ConversionUtils => CU, JsonUtils => JU}
 import utils.MapTransformer._
+import utils.shredder.Shredder
 
 import enrichments.{EventEnrichments => EE}
 import enrichments.{MiscEnrichments => ME}
@@ -62,7 +65,7 @@ object EnrichmentManager {
    *         NonHiveOutput.
    */
   // TODO: etlTstamp shouldn't be stringly typed really
-  def enrichEvent(registry: EnrichmentRegistry, hostEtlVersion: String, etlTstamp: DateTime, raw: RawEvent): ValidatedEnrichedEvent = {
+  def enrichEvent(registry: EnrichmentRegistry, hostEtlVersion: String, etlTstamp: DateTime, raw: RawEvent)(implicit resolver: Resolver): ValidatedEnrichedEvent = {
 
     // Placeholders for where the Success value doesn't matter.
     // Useful when you're updating large (>22 field) POSOs.
@@ -409,6 +412,21 @@ object EnrichmentManager {
       case None => Nil.success
     }
 
+    // Validate contexts and unstructured events
+    val shred = Shredder.shred(event) match {
+      case Failure(msgs) => msgs.map(_.toString).fail
+      case Success(_) => unitSuccess.toValidationNel
+    }
+
+    // Extract the event vendor/name/format/version
+    val extractSchema = SchemaEnrichment.extractSchema(event).map(schemaKey => {
+      event.event_vendor = schemaKey.vendor
+      event.event_name = schemaKey.name
+      event.event_format = schemaKey.format
+      event.event_version = schemaKey.version
+      unitSuccess
+    })
+
     // Assemble array of derived contexts
     val derived_contexts = List(uaParser).collect {
       case Success(Some(context)) => context
@@ -451,8 +469,10 @@ object EnrichmentManager {
       pageQsMap.toValidationNel               |@|
       crossDomain.toValidationNel             |@|
       jsScript.toValidationNel                |@|
-      campaign) {
-      (_,_,_,_,_,_,_) => ()
+      campaign                                |@|
+      shred                                   |@|
+      extractSchema.toValidationNel) {
+      (_,_,_,_,_,_,_,_,_) => ()
     }
     (first |@| second) {
       (_,_) => event
