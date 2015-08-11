@@ -46,7 +46,8 @@ import spray.http.HttpHeaders.{
   `Access-Control-Allow-Origin`,
   `Access-Control-Allow-Credentials`,
   `Access-Control-Allow-Headers`,
-  RawHeader
+  RawHeader,
+  Location
 }
 import spray.http.MediaTypes.`image/gif`
 
@@ -151,24 +152,35 @@ class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit c
         getAccessControlAllowOriginHeader(request),
         `Access-Control-Allow-Credentials`(true)
       )
+      val responseCookie = HttpCookie(
+      "sp", networkUserId,
+      expires=Some(DateTime.now+config.cookieExpiration),
+      domain=config.cookieDomain
+    )
 
-      val headers = if (config.cookieEnabled) {
-        val responseCookie = HttpCookie(
-          "sp", networkUserId,
-          expires=Some(DateTime.now+config.cookieExpiration),
-          domain=config.cookieDomain
-        )
-        `Set-Cookie`(responseCookie) :: headersWithoutCookie
-      } else {
-        headersWithoutCookie
-      }
+      // Hearders when pixel '\i' is expected (with redirect)
+     val headersR = List(
+      RawHeader("P3P", "policyref=\"%s\", CP=\"%s\"".format(policyRef, CP)),
+      `Set-Cookie`(responseCookie)
+     // ,Location ("https://events.mediarithmics.com/v1/touches/pixel?$ev=$user-id-mapping&$dom_token=cl78&$uaid="+networkUserId)
+
+    )
+     // headers whn no pixel is expected
+    val headers = List(
+      RawHeader("P3P", "policyref=\"%s\", CP=\"%s\"".format(policyRef, CP)),
+      `Set-Cookie`(responseCookie)
+    )
+
 
       val httpResponse = (if (pixelExpected) {
-          HttpResponse(entity = HttpEntity(`image/gif`, ResponseHandler.pixel))
+      	// en cas de redirect
+         // HttpResponse(status=302, entity = HttpEntity(`image/gif`, ResponseHandler.pixel)).withHeaders(headersR);
+         HttpResponse(status=302, entity = HttpEntity(`image/gif`, ResponseHandler.pixel)).withHeaders(headersR);
         } else {
-          HttpResponse()
-        }).withHeaders(headers)
+          HttpResponse(status= 200).withHeaders(headers);
 
+        })
+      // println("########### cookie : "+ pixelExpected)
       (httpResponse, sinkResponse)
     }
   }
@@ -190,7 +202,7 @@ class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit c
   )
 
   def healthy = HttpResponse(status = 200, entity = s"OK")
-  def notFound = HttpResponse(status = 404, entity = "404 Not found")
+  def notFound = HttpResponse(status = 404, entity = "ab5.claratracking.fr : 404 Not found ! ")
   def timeout = HttpResponse(status = 500, entity = s"Request timed out.")
 
   /**
