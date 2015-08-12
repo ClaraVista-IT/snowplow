@@ -427,6 +427,18 @@ object EnrichmentManager {
       unitSuccess
     })
 
+    val derivedTstamp = EE.getDerivedTimestamp(
+      Option(event.dvce_sent_tstamp),
+      Option(event.dvce_tstamp),
+      Option(event.collector_tstamp)
+    ) match {
+      case Success(dt) => {
+        dt.foreach(event.derived_tstamp = _)
+        unitSuccess
+      }
+      case f => f
+    }
+
     // Assemble array of derived contexts
     val derived_contexts = List(uaParser).collect {
       case Success(Some(context)) => context
@@ -454,13 +466,14 @@ object EnrichmentManager {
     val first =
       (useragent.toValidationNel              |@|
       collectorTstamp.toValidationNel         |@|
+      derivedTstamp.toValidationNel           |@|
       client.toValidationNel                  |@|
       uaParser.toValidationNel                |@|
       collectorVersionSet.toValidationNel     |@|
       pageUri.toValidationNel                 |@|
       geoLocation.toValidationNel             |@|
       refererUri.toValidationNel) {
-      (_,_,_,_,_,_,_,_) => ()
+      (_,_,_,_,_,_,_,_,_) => ()
     }
     val second = 
       (transform                              |@|
