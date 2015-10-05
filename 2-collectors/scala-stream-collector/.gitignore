@@ -1,5 +1,6 @@
 project/target
 project/project
+.idea/
 target
-
+collector.config
 src/main/resources/application.conf

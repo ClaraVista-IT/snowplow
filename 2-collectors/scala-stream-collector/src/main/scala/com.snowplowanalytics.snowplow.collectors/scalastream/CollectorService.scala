@@ -21,6 +21,8 @@ import akka.actor.{Actor,ActorRefFactory}
 import akka.pattern.ask
 import akka.util.Timeout
 
+import scala.None
+
 // Spray
 import spray.http.Timedout
 import spray.http.HttpHeaders.RawHeader
@@ -90,8 +92,8 @@ class CollectorService(
                             request,
                             refererURI,
                             "/" + path1 + "/" + path2,
-                            false
-                          )._1
+                            false,
+                          None)._1
                         )
                       }
                     }
@@ -111,24 +113,44 @@ class CollectorService(
               headerValueByName("Raw-Request-URI") { rawRequest =>
                 hostName { host =>
                   clientIP { ip =>
-                    requestInstance{ request =>
-                      complete(
-                        responseHandler.cookie(
-                          rawRequest match {
-                            case CollectorService.QuerystringExtractor(qs) => qs
-                            case _ => ""
-                          },
-                          null,
-                          reqCookie,
-                          userAgent,
-                          host,
-                          ip,
-                          request,
-                          refererURI,
-                          "/" + path,
-                          true
-                        )._1
-                      )
+                    requestInstance { request =>
+                      parameter("adnxs_uid" ?) { tt =>
+                        complete {
+
+                          /** paramètre param contient la chaine concernant l'id retourné par Appnexus ou tout autre plateforme
+                            * "&adnxs_uid={ID RETOURNE PAR APPNEXUS}", il sera extrait et passé en paramètre à la méthode "cookie" de
+                            * la classe ResponseHandler
+                            */
+                          val value = tt.getOrElse("")
+                          val param = "&adnxs_uid=" + value
+
+
+
+                          responseHandler.cookie(
+
+                            rawRequest match {
+                              /** rawRequest représente la chaine formée par la requête envoyée par le Tracker
+                                * Une vérification par affectation a une expression régulière est obligatoire
+                                * Cette vérification permet de s'assurer du format de la requête .
+                                * Dans le cas ou la requete est valide, on en enlève l'id AppNexus [ qs.replace(param,"")]
+                                * et le collecteur continue son travail normalement avec une requête classique
+                                * */
+                              case CollectorService.QuerystringExtractor(qs) => qs.replace(param, "")
+                              case _ => ""
+                            },
+                            null,
+                            reqCookie,
+                            userAgent,
+                            host,
+                            ip,
+                            request,
+                            refererURI,
+                            "/" + path,
+                            true,
+                            Some(value))._1
+                          // param
+                        }
+                      }
                     }
                   }
                 }
@@ -166,8 +188,8 @@ class CollectorService(
                           request,
                           refererURI,
                           "/" + path1 + "/" + path2,
-                          true
-                        )._1
+                          true,
+                        None)._1
                       )
                     }
                   }
