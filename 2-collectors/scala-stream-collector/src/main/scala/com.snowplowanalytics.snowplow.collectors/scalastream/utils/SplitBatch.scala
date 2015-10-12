@@ -103,14 +103,14 @@ object SplitBatch {
 
     // If the event is below the size limit, no splitting is necessary
     if (wholeEventBytes < maxBytes) {
-      EventSerializeResult(List(everythingSerialized), Nil)
+      EventSerializeResult(List(everythingSerialized), Nil,Nil)
     } else {
       event.getBody match {
         case null => {
           // Event was a GET
           val err = "Cannot split record with null body"
           val payload = getBadRow(wholeEventBytes, List(err)).getBytes
-          EventSerializeResult(Nil, List(payload))
+          EventSerializeResult(Nil, List(payload),Nil)
         }
         case body => {
           try {
@@ -129,7 +129,7 @@ object SplitBatch {
             if (wholeEventBytes - initialBodyDataBytes >= maxBytes) {
               val err = "Even without the body, the serialized event is too large"
               val payload = getBadRow(wholeEventBytes, List(err)).getBytes
-              EventSerializeResult(Nil, List(payload))
+              EventSerializeResult(Nil, List(payload),Nil)
             } else {
 
               val bodySchema = initialBody \ "schema"
@@ -147,13 +147,20 @@ object SplitBatch {
                 case None => {
                   val err = "Bad record with no data field"
                   val payload = getBadRow(wholeEventBytes, List(err)).getBytes
-                  EventSerializeResult(Nil, List(payload))
+                  EventSerializeResult(Nil, List(payload),Nil)
                 }
 
                 case Some(batches) => {
 
                   // Copy all data from the original payload into the smaller payloads
                   val goodList = batches.goodBatches.map(batch => {
+                    val payload = event.deepCopy()
+                    val data = batch.map(evt => parse(evt))
+                    val body = getGoodRow(bodySchema, data)
+                    payload.setBody(body)
+                    serializer.serialize(payload)
+                  })
+                  val mapList = batches.goodBatches.map(batch => {
                     val payload = event.deepCopy()
                     val data = batch.map(evt => parse(evt))
                     val body = getGoodRow(bodySchema, data)
@@ -168,7 +175,7 @@ object SplitBatch {
                   })
 
                   // Return Good and Bad Lists
-                  EventSerializeResult(goodList, badList)
+                  EventSerializeResult(goodList, badList,mapList)
                 }
               }
             }
@@ -176,7 +183,7 @@ object SplitBatch {
             case e: Exception => {
               val err = s"Could not parse payload body %s".format(e.getMessage)
               val payload = getBadRow(wholeEventBytes, List(err)).getBytes
-              EventSerializeResult(Nil, List(payload))
+              EventSerializeResult(Nil, List(payload),Nil)
             }
           }
         }

@@ -144,6 +144,7 @@ class KinesisSink private (config: CollectorConfig, inputType: InputType.InputTy
   private val streamName = inputType match {
     case InputType.Good => config.streamGoodName
     case InputType.Bad  => config.streamBadName
+    case InputType.Map  => config.streamMapName
   }
   private val sinkStream = loadStream( streamName )
 

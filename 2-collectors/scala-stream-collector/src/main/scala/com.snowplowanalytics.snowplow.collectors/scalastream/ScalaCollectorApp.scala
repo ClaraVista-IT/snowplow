@@ -77,12 +77,17 @@ object ScalaCollector extends App {
     case Sink.Kinesis => {
       val good = KinesisSink.createAndInitialize(collectorConfig, InputType.Good)
       val bad  = KinesisSink.createAndInitialize(collectorConfig, InputType.Bad)
-      CollectorSinks(good, bad) 
+      val map  = KinesisSink.createAndInitialize(collectorConfig, InputType.Map)
+
+
+      CollectorSinks(good, bad,map)
     }
     case Sink.Stdout  => {
       val good = new StdoutSink(InputType.Good)
       val bad = new StdoutSink(InputType.Bad)
-      CollectorSinks(good, bad) 
+      val map = new StdoutSink(InputType.Map)
+
+      CollectorSinks(good, bad,map)
     }
   }
 
@@ -151,6 +156,8 @@ class CollectorConfig(config: Config) {
   private val stream = kinesis.getConfig("stream")
   val streamGoodName = stream.getString("good")
   val streamBadName = stream.getString("bad")
+  val streamMapName = stream.getString("map")
+
   private val streamRegion = stream.getString("region")
   val streamEndpoint = s"https://kinesis.${streamRegion}.amazonaws.com"
 

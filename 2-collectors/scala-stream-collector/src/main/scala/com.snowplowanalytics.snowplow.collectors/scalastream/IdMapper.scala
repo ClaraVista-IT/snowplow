@@ -13,19 +13,21 @@ import spray.http.DateTime
 object IdMapper{
   type LineMap =(String,String,String)
   val maxRecord: Int = 5
-  var buffer = List("")
+  var buffer :List[Array[Byte]] = Nil
 
 
-  def addToBuffer( line : String): Unit ={
+  def addToBuffer( line : Array[Byte]): List[Array[Byte]] ={
     println("Le buffer a une taille de" + buffer.length)
     if(buffer.length<maxRecord){
-      buffer=line.toString()::buffer
+      buffer=line::buffer
       println(line +" viens d etre ajouté au buffer")
     }
     else{
       println("Le buffer sera commité vers S3")
-      bufferToS3()
+      buffer = List()
+      //bufferToS3()
     }
+    buffer
   }
 
   private def bufferToS3(): Unit ={

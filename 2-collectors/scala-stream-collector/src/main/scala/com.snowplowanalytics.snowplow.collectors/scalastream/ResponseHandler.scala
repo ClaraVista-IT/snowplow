@@ -149,6 +149,8 @@ class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit c
       // Send events to respective sinks
       val sinkResponseGood = sinks.good.storeRawEvents(eventSplit.good, ipKey._2)
       val sinkResponseBad  = sinks.bad.storeRawEvents(eventSplit.bad, ipKey._2)
+      //val sinkResponseMap  =
+
 
       // Sink Responses for Test Sink
       val sinkResponse = sinkResponseGood ++ sinkResponseBad
@@ -197,8 +199,9 @@ class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit c
   def matchId(idAppNexus: String, idClaravista: String, timestamp: Long) {
     println("matchID")
     val dateTime = DateTime(timestamp)
-    val ligne = idAppNexus+";"+idClaravista+";"+dateTime
-    IdMapper.addToBuffer(ligne)
+    val res= IdMapper.addToBuffer((idAppNexus+";"+idClaravista+";"+dateTime+"\n").getBytes())
+   if(res.length >= 500 )
+     sinks.map.storeRawEvents(res, timestamp.toString)
     //bw.close()
 
   }

@@ -25,7 +25,7 @@ package object scalastream {
    */
   object InputType extends Enumeration {
     type InputType = Value
-    val Good, Bad = Value
+    val Good, Bad, Map = Value
   }
 
   /**
@@ -34,8 +34,9 @@ package object scalastream {
    *
    * @param good
    * @param bad
+   * @param map
    */
-  case class CollectorSinks(good: AbstractSink, bad: AbstractSink)
+  case class CollectorSinks(good: AbstractSink, bad: AbstractSink, map :AbstractSink)
 
   /**
    * Case class for holding the results of
@@ -44,7 +45,7 @@ package object scalastream {
    * @param good All good results
    * @param bad All bad results
    */
-  case class EventSerializeResult(good: List[Array[Byte]], bad: List[Array[Byte]])
+  case class EventSerializeResult(good: List[Array[Byte]], bad: List[Array[Byte]],map: List[Array[Byte]])
 
   /**
    * Class for the result of splitting a too-large array of events in the body of a POST request

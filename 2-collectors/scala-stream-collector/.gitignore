@@ -4,3 +4,4 @@ project/project
 target
 collector.config
 src/main/resources/application.conf
+../../3-enrich/
