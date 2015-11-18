@@ -18,18 +18,13 @@ object IdMapper{
 
   def addToBuffer( line : Array[Byte]): List[Array[Byte]] ={
     println("Le buffer a une taille de" + buffer.length)
-    if(buffer.length<maxRecord){
-      buffer=line::buffer
-      println(line +" viens d etre ajouté au buffer")
-    }
-    else{
-      println("Le buffer sera commité vers S3")
-      buffer = List()
-      //bufferToS3()
-    }
+    buffer=line::buffer
     buffer
   }
 
+
+
+  /** This method is not used , it allows storing a buffer directly to S3*/
   private def bufferToS3(): Unit ={
     val timestamp: Long = System.currentTimeMillis
     val dateTime = DateTime(timestamp).toString()
@@ -38,12 +33,13 @@ object IdMapper{
     buffer.foreach(a => bw.write(a+"\n"))
     bw.close()
     AmazonS3FileUpload.putFile(None,dateTime)
-    buffer = List()
-
+    flushBuffer()
   }
 
 
-
+ def flushBuffer(): Unit ={
+   buffer = List()
+ }
 
 
 

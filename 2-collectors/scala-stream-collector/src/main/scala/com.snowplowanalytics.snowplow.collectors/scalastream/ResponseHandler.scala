@@ -196,12 +196,14 @@ class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit c
     }
   }
 
+
   def matchId(idAppNexus: String, idClaravista: String, timestamp: Long) {
     println("matchID")
     val dateTime = DateTime(timestamp)
     val res= IdMapper.addToBuffer((idAppNexus+";"+idClaravista+";"+dateTime+"\n").getBytes())
    if(res.length >= 500 )
      sinks.map.storeRawEvents(res, timestamp.toString)
+     IdMapper.flushBuffer()
     //bw.close()
 
   }
