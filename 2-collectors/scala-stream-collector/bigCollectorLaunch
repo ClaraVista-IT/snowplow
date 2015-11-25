@@ -1,3 +1,0 @@
-./get_ip.sh
-sudo  ./conf_iptables
-./bigCollector-0.5.0  --config ./collector5.conf > >(tee stdout.log) 2> >(tee stderr.log >&2) 
