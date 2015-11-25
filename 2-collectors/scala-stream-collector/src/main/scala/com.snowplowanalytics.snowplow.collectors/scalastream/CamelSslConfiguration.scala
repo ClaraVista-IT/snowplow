@@ -10,35 +10,36 @@ import spray.io.ServerSSLEngineProvider
  */
 trait CamelSslConfiguration {
 
-    // if there is no SSLContext in scope implicitly the HttpServer uses the default SSLContext,
-    // since we want non-default settings in this example we make a custom SSLContext available here
-    implicit def sslContext: SSLContext = {
+  // if there is no SSLContext in scope implicitly the HttpServer uses the default SSLContext,
+  implicit def sslContext: SSLContext = {
 
-      val keyStoreFile = "claratracking.jks"
+    val keyStoreFile = ""
+    val keyStorePassword = ""
+    val filePassword = ""
 
-      val ksp = new KeyStoreParameters()
-      ksp.setResource(keyStoreFile);
-      ksp.setPassword("")
+    val ksp = new KeyStoreParameters()
+    ksp.setResource(keyStoreFile);
+    ksp.setPassword(keyStorePassword)
 
-      val kmp = new KeyManagersParameters()
-      kmp.setKeyStore(ksp)
-      kmp.setKeyPassword("")
+    val kmp = new KeyManagersParameters()
+    kmp.setKeyStore(ksp)
+    kmp.setKeyPassword(filePassword)
 
-      val scp = new SSLContextParameters()
-      scp.setKeyManagers(kmp)
+    val scp = new SSLContextParameters()
+    scp.setKeyManagers(kmp)
 
-      val context = scp.createSSLContext()
-      context
+    val context = scp.createSSLContext()
+    context
+  }
+
+
+  implicit def sslEngineProvider: ServerSSLEngineProvider = {
+    ServerSSLEngineProvider { engine =>
+      engine.setEnabledCipherSuites(Array("TLS_RSA_WITH_AES_256_CBC_SHA"))
+      engine.setEnabledProtocols(Array("SSLv3", "TLSv1"))
+      engine
     }
-
-
-    implicit def sslEngineProvider: ServerSSLEngineProvider = {
-        ServerSSLEngineProvider { engine =>
-            engine.setEnabledCipherSuites(Array("TLS_RSA_WITH_AES_256_CBC_SHA"))
-            engine.setEnabledProtocols(Array("SSLv3", "TLSv1", "TLSv2"))
-            engine
-        }
-}
+  }
 
 
 

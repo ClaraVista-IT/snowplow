@@ -17,56 +17,28 @@ package collectors
 package scalastream
 
 // Java
-import java.nio.ByteBuffer
 import java.util.UUID
-
-import com.snowplowanalytics.snowplow.collectors.scalastream.IdMapper
 
 // Apache Commons
 import org.apache.commons.codec.binary.Base64
 
 // Spray
-import spray.http.{
-  DateTime,
-  HttpRequest,
-  HttpResponse,
-  HttpEntity,
-  HttpCookie,
-  SomeOrigins,
-  AllOrigins,
-  ContentType,
-  MediaTypes,
-  HttpCharsets,
-  RemoteAddress
-}
-import spray.http.HttpHeaders.{
-  `Set-Cookie`,
-  `Remote-Address`,
-  `Raw-Request-URI`,
-  `Content-Type`,
-  `Origin`,
-  `Access-Control-Allow-Origin`,
-  `Access-Control-Allow-Credentials`,
-  `Access-Control-Allow-Headers`,
-  RawHeader,
-  Location
-}
+import spray.http.HttpHeaders.{Location, RawHeader, `Access-Control-Allow-Credentials`, `Access-Control-Allow-Headers`, `Access-Control-Allow-Origin`, `Content-Type`, `Origin`, `Raw-Request-URI`, `Remote-Address`, `Set-Cookie`}
 import spray.http.MediaTypes.`image/gif`
+import spray.http.{AllOrigins, ContentType, DateTime, HttpCharsets, HttpCookie, HttpEntity, HttpRequest, HttpResponse, MediaTypes, RemoteAddress, SomeOrigins}
 
 // Akka
 import akka.actor.ActorRefFactory
 
 // Typesafe config
-import com.typesafe.config.Config
 
 // Java conversions
 import scala.collection.JavaConversions._
 
 // Snowplow
-import generated._
-import CollectorPayload.thrift.model1.CollectorPayload
-import sinks._
-import utils.SplitBatch
+import com.snowplowanalytics.snowplow.CollectorPayload.thrift.model1.CollectorPayload
+import com.snowplowanalytics.snowplow.collectors.scalastream.sinks._
+import com.snowplowanalytics.snowplow.collectors.scalastream.utils.SplitBatch
 
 // Contains an invisible pixel to return for `/i` requests.
 object ResponseHandler {
@@ -78,15 +50,20 @@ object ResponseHandler {
 // Receive requests and store data into an output sink.
 class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit context: ActorRefFactory) {
 
-  import context.dispatcher
-
   val Collector = s"${generated.Settings.shortName}-${generated.Settings.version}-" + config.sinkEnabled.toString.toLowerCase
+
+
+    /**
+     * Cette Methode est utilisée a chaque demande de pixel, une petite modification nous a permis de lui ajouter un paramètre
+     * qui représente l'identifiant retourné par la platforme de maping (s'il existe)
+     */
+
 
   // When `/i` is requested, this is called and stores an event in the
   // Kinisis sink and returns an invisible pixel with a cookie.
   def cookie(queryParams: String, body: String, requestCookie: Option[HttpCookie],
       userAgent: Option[String], hostname: String, ip: RemoteAddress,
-      request: HttpRequest, refererUri: Option[String], path: String, pixelExpected: Boolean,appNexusId: Option[String]):
+      request: HttpRequest, refererUri: Option[String], path: String, pixelExpected: Boolean,mapId: Option[String]):
       (HttpResponse, List[Array[Byte]]) = {
 
     if (KinesisSink.shuttingDown) {
@@ -95,7 +72,7 @@ class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit c
 
       // Make a Tuple2 with the ip address and the shard partition key
       val ipKey = ip.toOption.map(_.getHostAddress) match {
-        case None     => ("unknown", UUID.randomUUID.toString)
+        case None => ("unknown", UUID.randomUUID.toString)
         case Some(ip) => (ip, ip)
       }
 
@@ -123,10 +100,12 @@ class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit c
       event.networkUserId = networkUserId
 
       /** Une vérification de la taille "existance" de l'id appNexus
-        * S'il existe, on appelle la méthode matchId(String,String) qui s'occupe de l'écriture du Tuple dans un fichier*/
-        val app=appNexusId.getOrElse("")
-       if(app.length > 0)
-        matchId(app,networkUserId,timestamp)
+        * S'il existe, on appelle la méthode matchId(String,String,Long) qui s'occupe de l'écriture du Tuple dans un Buffer */
+
+      val app =mapId.getOrElse("")
+      if(app.compareTo("None") != 0){
+        matchId(app, networkUserId, timestamp)}
+
 
 
       userAgent.foreach(event.userAgent = _)
@@ -137,7 +116,7 @@ class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit c
       }
 
       // Set the content type
-      request.headers.find(_ match {case `Content-Type`(ct) => true; case _ => false}) foreach {
+      request.headers.find(_ match { case `Content-Type`(ct) => true; case _ => false }) foreach {
 
         // toLowerCase called because Spray seems to convert "utf" to "UTF"
         ct => event.contentType = ct.value.toLowerCase
@@ -148,7 +127,7 @@ class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit c
 
       // Send events to respective sinks
       val sinkResponseGood = sinks.good.storeRawEvents(eventSplit.good, ipKey._2)
-      val sinkResponseBad  = sinks.bad.storeRawEvents(eventSplit.bad, ipKey._2)
+      val sinkResponseBad = sinks.bad.storeRawEvents(eventSplit.bad, ipKey._2)
       //val sinkResponseMap  =
 
 
@@ -162,48 +141,66 @@ class ResponseHandler(config: CollectorConfig, sinks: CollectorSinks)(implicit c
         RawHeader("P3P", "policyref=\"%s\", CP=\"%s\"".format(policyRef, CP)),
         getAccessControlAllowOriginHeader(request),
         `Access-Control-Allow-Credentials`(true)
-      )
+      );
       val responseCookie = HttpCookie(
-      "sp", networkUserId,
-      expires=Some(DateTime.now+config.cookieExpiration),
-      domain=config.cookieDomain
-    )
-
-      // Hearders when pixel '\i' is expected (with redirect)
-     val headersR = List(
-      RawHeader("P3P", "policyref=\"%s\", CP=\"%s\"".format(policyRef, CP)),
-      `Set-Cookie`(responseCookie)
-     // ,Location ("https://events.mediarithmics.com/v1/touches/pixel?$ev=$user-id-mapping&$dom_token=cl78&$uaid="+networkUserId)
-
-    )
-     // headers whn no pixel is expected
-    val headers = List(
-      RawHeader("P3P", "policyref=\"%s\", CP=\"%s\"".format(policyRef, CP)),
-      `Set-Cookie`(responseCookie)
-    )
+        "sp", networkUserId,
+        expires = Some(DateTime.now + config.cookieExpiration),
+        domain = config.cookieDomain
+      );
 
 
-      val httpResponse = (if (pixelExpected) {
-      	// en cas de redirect
-         // HttpResponse(status=302, entity = HttpEntity(`image/gif`, ResponseHandler.pixel)).withHeaders(headersR);
-         HttpResponse(status=302, entity = HttpEntity(`image/gif`, ResponseHandler.pixel)).withHeaders(headersR);
-        } else {
-          HttpResponse(status= 200).withHeaders(headers);
 
-        })
-      // println("########### cookie : "+ pixelExpected)
+      // Hearders  (with redirect)
+
+      val headers = if (config.allowRedirect)  {
+        List(
+          RawHeader("P3P", "policyref=\"%s\", CP=\"%s\"".format(policyRef, CP)),
+          `Set-Cookie`(responseCookie),
+          Location(config.pathToRedirect)
+       )}
+        else {List(
+          RawHeader("P3P", "policyref=\"%s\", CP=\"%s\"".format(policyRef, CP)),
+          `Set-Cookie`(responseCookie)
+        )
+
+      }
+
+
+    /**
+     * Une vérification de l'activation de la fonctionnalité de REDIRECT (a travers allow-redirect dans le fichier de configuration)
+     * permet de determiner le type de la réponse HTTP.
+     * En effet, le status de la réponse peut poser problème sur certains navigateurs comme IE .
+     * (Redirect ==> 302) (Direct response ==> 200)
+     * */
+
+
+      val httpResponse = if (pixelExpected) {
+
+        if (config.allowRedirect)
+          // en cas de redirect
+            HttpResponse(status = 302, entity = HttpEntity(`image/gif`, ResponseHandler.pixel)).withHeaders(headers)
+          else
+            HttpResponse(status = 200, entity = HttpEntity(`image/gif`, ResponseHandler.pixel)).withHeaders(headers)
+      }
+      else {
+        HttpResponse(status = 200).withHeaders(headers)
+      }
       (httpResponse, sinkResponse)
     }
   }
 
 
+  /**
+   * Cette méthode s'occupe du stockage des matchings dans un buffer, avant qu'il soit lancé sur un stream kinesis
+   * un objet IdMapper offre les fonctionnalitées d'ajout,d'envoi et de vidage de ce buffer.
+   * */
+
   def matchId(idAppNexus: String, idClaravista: String, timestamp: Long) {
-    println("matchID")
     val dateTime = DateTime(timestamp)
     val res= IdMapper.addToBuffer((idAppNexus+";"+idClaravista+";"+dateTime+"\n").getBytes())
-   if(res.length >= 500 )
+   if(res.length >= 500 ){
      sinks.map.storeRawEvents(res, timestamp.toString)
-     IdMapper.flushBuffer()
+     IdMapper.flushBuffer()}
     //bw.close()
 
   }

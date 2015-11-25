@@ -20,41 +20,30 @@ import java.nio.ByteBuffer
 import java.util.concurrent.ScheduledThreadPoolExecutor
 
 // Amazon
-import com.amazonaws.services.kinesis.model.ResourceNotFoundException
-import com.amazonaws.AmazonServiceException
-import com.amazonaws.auth.{
-  BasicAWSCredentials,
-  ClasspathPropertiesFileCredentialsProvider
-}
+import com.amazonaws.auth.{BasicAWSCredentials, ClasspathPropertiesFileCredentialsProvider}
 import com.amazonaws.services.kinesis.AmazonKinesisClient
+import com.amazonaws.services.kinesis.model.ResourceNotFoundException
 
 // Scalazon (for Kinesis interaction)
+import io.github.cloudify.scala.aws.auth.CredentialsProvider.InstanceProfile
 import io.github.cloudify.scala.aws.kinesis.Client
 import io.github.cloudify.scala.aws.kinesis.Client.ImplicitExecution._
-import io.github.cloudify.scala.aws.kinesis.Definitions.{
-  Stream,
-  PutResult,
-  Record
-}
+import io.github.cloudify.scala.aws.kinesis.Definitions.Stream
 import io.github.cloudify.scala.aws.kinesis.KinesisDsl._
-import io.github.cloudify.scala.aws.auth.CredentialsProvider.InstanceProfile
 
 // Config
-import com.typesafe.config.Config
 
 // Concurrent libraries
-import scala.concurrent.{Future,Await,TimeoutException}
+import scala.concurrent.Await
 import scala.concurrent.duration._
 
 // Logging
-import org.slf4j.LoggerFactory
 
 // Scala
-import scala.util.{Success, Failure}
 import scala.collection.JavaConverters._
+import scala.util.{Failure, Success}
 
 // Snowplow
-import CollectorPayload.thrift.model1.CollectorPayload
 
 /**
  * KinesisSink companion object with factory method
@@ -94,7 +83,7 @@ object KinesisSink {
  */
 class KinesisSink private (config: CollectorConfig, inputType: InputType.InputType) extends AbstractSink {
 
-  import log.{error, debug, info, trace}
+  import log.{error, info}
 
   // Records must not exceed MaxBytes - 1MB
   val MaxBytes = 1000000L

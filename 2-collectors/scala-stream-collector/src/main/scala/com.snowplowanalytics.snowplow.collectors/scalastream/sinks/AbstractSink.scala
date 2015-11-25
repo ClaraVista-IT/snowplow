@@ -22,16 +22,13 @@ package scalastream
 package sinks
 
 // Java
-import java.nio.ByteBuffer
 
 // Thrift
-import org.apache.thrift.TSerializer
 
 // Logging
 import org.slf4j.LoggerFactory
 
 // Snowplow
-import CollectorPayload.thrift.model1.CollectorPayload
 
 // Define an interface for all sinks to use to store events.
 trait AbstractSink {

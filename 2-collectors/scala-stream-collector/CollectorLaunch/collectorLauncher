@@ -1,0 +1,28 @@
+
+#
+# @ By Safouane 25.11.2015
+#
+
+
+
+# Initialise ip adress in at the interface field in  the configuration file "collector5.conf"
+./get_ip.sh
+
+# Edit iptables to open ports and forward (80 -> 8080) to make the application EC2 like
+sudo  ./conf_iptables
+
+# Get Ssl options from the configuration file (collector5.conf) and replace them in the source code
+. ssl_script.sh
+
+# Run our application by providing a configuration file, and redirect out and err
+sbt "run  --config ./collector5.conf"  > >(tee stdout.log) 2> >(tee stderr.log >&2)
+
+
+
+
+
+
+
+
+
+

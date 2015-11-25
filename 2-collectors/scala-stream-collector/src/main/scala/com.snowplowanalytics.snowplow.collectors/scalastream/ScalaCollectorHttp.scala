@@ -19,26 +19,31 @@ package scalastream
 // Akka and Spray
 import akka.actor.{ActorSystem, Props}
 import akka.io.IO
+import org.apache.camel.CamelAuthorizationException
 import spray.can.Http
 
 // Java
 import java.io.File
+import java.nio.ByteBuffer
 
 // Argot
 import org.clapper.argot._
 
 // Config
-import com.typesafe.config.{Config, ConfigException, ConfigFactory}
+import com.typesafe.config.{ConfigFactory,Config,ConfigException}
 
 // Logging
 import org.slf4j.LoggerFactory
 
 // Snowplow
-import com.snowplowanalytics.snowplow.collectors.scalastream.sinks._
+import sinks._
 
 // Main entry point of the Scala collector.
-object ScalaCollector extends App with CamelSslConfiguration{
-  lazy val log = LoggerFactory.getLogger(getClass()) // Argument specifications
+object ScalaCollector extends App{
+  lazy val log = LoggerFactory.getLogger(getClass())
+  import log.{error, debug, info, trace}
+
+  import ArgotConverters._ // Argument specifications
 
   val parser = new ArgotParser(
     programName = generated.Settings.name,
@@ -49,8 +54,6 @@ object ScalaCollector extends App with CamelSslConfiguration{
       generated.Settings.organization)
     )
   )
-
-
 
   // Mandatory config argument
   val config = parser.option[Config](List("config"), "filename",
@@ -66,20 +69,12 @@ object ScalaCollector extends App with CamelSslConfiguration{
 
   parser.parse(args)
 
-
-  /** Load configuration file*/
   val rawConf = config.value.getOrElse(throw new RuntimeException("--config option must be provided"))
   val collectorConfig = new CollectorConfig(rawConf)
 
-
-
-
   implicit val system = ActorSystem.create("scala-stream-collector", rawConf)
 
-  /** If the Sink is set to Kinesis, we MUST provide 3 kinesis streams
-    *  for goodRecords,badRecords and mapingID*/
-
-    val sinks = collectorConfig.sinkEnabled match {
+  val sinks = collectorConfig.sinkEnabled match {
     case Sink.Kinesis => {
       val good = KinesisSink.createAndInitialize(collectorConfig, InputType.Good)
       val bad  = KinesisSink.createAndInitialize(collectorConfig, InputType.Bad)
@@ -105,8 +100,6 @@ object ScalaCollector extends App with CamelSslConfiguration{
 
   IO(Http) ! Http.Bind(handler,
     interface=collectorConfig.interface, port=collectorConfig.port)
-
-
 }
 
 // Return Options from the configuration.
@@ -148,7 +141,7 @@ class CollectorConfig(config: Config) {
   val cookieDomain = cookie.getOptionalString("domain")
 
   private val sink = collector.getConfig("sink")
-
+  
   // TODO: either change this to ADTs or switch to withName generation
   val sinkEnabled = sink.getString("enabled") match {
     case "kinesis" => Sink.Kinesis
@@ -182,45 +175,21 @@ class CollectorConfig(config: Config) {
   val backoffPolicy = kinesis.getConfig("backoffPolicy")
   val minBackoff = backoffPolicy.getLong("minBackoff")
   val maxBackoff = backoffPolicy.getLong("maxBackoff")
-  //parametrage supplementaire pour activer/désactiver le redirect
 
-    /** #################################
-     * REDIRECT CONF
-     *#################################*/
+  //parametrage supplementaire pour activer/désactiver le redirect
 
   val redirect = collector.getConfig("redirect")
   val allowRedirect = redirect.getBoolean("allow-redirect")
 
   val pathToRedirect= allowRedirect match{
-    case (true) => redirect.getString("path-to-redirect")
-    case (false) => ""
-  }
-
-  val redirectId= allowRedirect match{
-    case true => redirect.getString("redirect-id")
-    case false => None
+    case true => redirect.getString("path-to-redirect")
+    case false => ""
   }
 
 
-  /** #################################
-    * SSL + CERTIFICATE CONF
-    *#################################*/
-  val sprayCanConf = config.getConfig("spray.can.server")
-  val sslEncryption = sprayCanConf.getString("ssl-encryption")
-
-  val certificate= collector.getConfig("certificate")
-
-  val pathToCertificate= sslEncryption match{
-    case "on" => certificate.getString("path-to-certificate")
-    case "off" => ""
-  }
-
-  val keystorePassword = sslEncryption match{
-    case "on" => certificate.getString("keystore-password")
-    case "off" => ""}
 
 
-  val filePassword = sslEncryption match{
-    case "on" => certificate.getString("file-password")
-    case "off" => ""}
+
+
+
 }

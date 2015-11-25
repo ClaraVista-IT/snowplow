@@ -17,22 +17,17 @@ package collectors
 package scalastream
 
 // Akka
-import akka.actor.{Actor,ActorRefFactory}
-import akka.pattern.ask
+import akka.actor.{Actor, ActorRefFactory}
 import akka.util.Timeout
-
-import scala.None
 
 // Spray
 import spray.http.Timedout
-import spray.http.HttpHeaders.RawHeader
 import spray.routing.HttpService
 
 // Scala
 import scala.concurrent.duration._
 
 // Snowplow
-import sinks._
 
 // Actor accepting Http requests for the Scala collector.
 class CollectorServiceActor(collectorConfig: CollectorConfig,
@@ -45,7 +40,12 @@ class CollectorServiceActor(collectorConfig: CollectorConfig,
 
   // Use CollectorService so the same route can be accessed differently
   // in the testing framework.
-  private val collectorService = new CollectorService(responseHandler, context)
+
+
+  /** redirectId est extraite de la classe collectorConfig. Elle est passée ensuite a la Classe CollectorService
+   * */
+   val redirectId = collectorConfig.redirectId.toString()
+  private val collectorService = new CollectorService(responseHandler, context,Option(redirectId))
 
   // Message loop for the Spray service.
   def receive = handleTimeouts orElse runRoute(collectorService.collectorRoute)
@@ -66,8 +66,12 @@ object CollectorService {
 // both CollectorServiceActor and from the testing framework.
 class CollectorService(
     responseHandler: ResponseHandler,
-    context: ActorRefFactory) extends HttpService {
+    context: ActorRefFactory,
+                        redirectId: Option[String]) extends HttpService {
   def actorRefFactory = context
+
+  val mapingString = "adnxs_uid"
+
 
   // TODO: reduce code duplication here
   val collectorRoute = {
@@ -114,15 +118,15 @@ class CollectorService(
                 hostName { host =>
                   clientIP { ip =>
                     requestInstance { request =>
-                      parameter("adnxs_uid" ?) { tt =>
+                      parameter(mapingString ?) { tt =>
                         complete {
 
                           /** paramètre param contient la chaine concernant l'id retourné par Appnexus ou tout autre plateforme
-                            * "&adnxs_uid={ID RETOURNE PAR APPNEXUS}", il sera extrait et passé en paramètre à la méthode "cookie" de
+                            * "&adnxs_uid={ID RETOURNE PAR APPNEXUS au tout autre plateforme de mapping}", il sera extrait et passé en paramètre à la méthode "cookie" de
                             * la classe ResponseHandler
                             */
                           val value = tt.getOrElse("")
-                          val param = "&adnxs_uid=" + value
+                          val param = "&"+mapingString+"=" + value
 
 
 
@@ -147,7 +151,7 @@ class CollectorService(
                             refererURI,
                             "/" + path,
                             true,
-                            Some(value))._1
+                            redirectId)._1
                           // param
                         }
                       }
@@ -212,4 +216,6 @@ class CollectorService(
     } ~
     complete(responseHandler.notFound)
   }
+
+
 }

@@ -13,33 +13,18 @@
 package com.snowplowanalytics.snowplow.collectors
 
 // Java
-import java.nio.ByteBuffer
 
 // Amazon
-import com.amazonaws.AmazonServiceException
-import com.amazonaws.auth.{
-BasicAWSCredentials,
-ClasspathPropertiesFileCredentialsProvider
-}
 
 // Scalazon (for Kinesis interaction)
-import io.github.cloudify.scala.aws.kinesis.Client
-import io.github.cloudify.scala.aws.kinesis.Client.ImplicitExecution._
-import io.github.cloudify.scala.aws.kinesis.Definitions.{Stream,PutResult}
-import io.github.cloudify.scala.aws.kinesis.KinesisDsl._
 
 // Config
-import com.typesafe.config.Config
 
 // SnowPlow Utils
 
 // Concurrent libraries.
-import scala.concurrent.{Future,Await,TimeoutException}
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
 
 // Thrift.
-import org.apache.thrift.TSerializer
 
 /**
  * The core logic for the Kinesis event producer
