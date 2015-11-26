@@ -45,6 +45,7 @@ class CollectorServiceActor(collectorConfig: CollectorConfig,
   /** redirectId est extraite de la classe collectorConfig. Elle est passée ensuite a la Classe CollectorService
    * */
    val redirectId = collectorConfig.redirectId.toString()
+
   private val collectorService = new CollectorService(responseHandler, context,Option(redirectId))
 
   // Message loop for the Spray service.
@@ -70,7 +71,7 @@ class CollectorService(
                         redirectId: Option[String]) extends HttpService {
   def actorRefFactory = context
 
-  val mapingString = "adnxs_uid"
+  val mapingString = redirectId.getOrElse("")
 
 
   // TODO: reduce code duplication here
@@ -122,7 +123,8 @@ class CollectorService(
                         complete {
 
                           /** paramètre param contient la chaine concernant l'id retourné par Appnexus ou tout autre plateforme
-                            * "&adnxs_uid={ID RETOURNE PAR APPNEXUS au tout autre plateforme de mapping}", il sera extrait et passé en paramètre à la méthode "cookie" de
+                            * "&adnxs_uid={ID RETOURNE PAR APPNEXUS au tout autre plateforme de mapping}", il sera extrait et
+                            * passé en paramètre à la méthode "cookie" de
                             * la classe ResponseHandler
                             */
                           val value = tt.getOrElse("")
